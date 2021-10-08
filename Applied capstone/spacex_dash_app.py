@@ -59,13 +59,26 @@ app.layout = html.Div(children=[html.H1('SpaceX Launch Records Dashboard',
     Input(component_id='site-dropdown', component_property='value')
     )
 def output_pie(site): #input value 
-    all_sites = spacex_df[spacex_df['class'] == 1].reset_index() # All Success only for all sites.
-    all_sites.rename(columns={'class': 'count'}, inplace=True)
-    fig = px.pie(
-            all_sites, 
+    if (site=='All Sites' or site==None):
+        all_sites = spacex_df[spacex_df['class'] == 1].reset_index(drop=True) # All Success only for all sites.
+        all_sites.rename(columns={'class': 'count'}, inplace=True)
+        fig = px.pie(
+                all_sites, 
+                values='count', 
+                names='Launch Site', 
+                title='Total Success Launches by All Sites',
+                color_discrete_sequence=px.colors.sequential.RdBu
+                )
+    else:
+        selected_site = spacex_df[spacex_df['Launch Site']==site].reset_index(drop=True)
+        site_sucessRate = selected_site.groupby(['Launch Site', 'class']).size().reset_index()
+        site_sucessRate.rename(columns={0:'count'}, inplace=True)
+        site_sucessRate.replace([0,1],['Fail', 'Successs'], inplace=True)
+        fig = px.pie(
+            site_sucessRate, 
             values='count', 
-            names='Launch Site', 
-            title='Total Success Launches by All Sites'
+            names='class', 
+            title=site +' launch rate',
             )
     return fig 
 
