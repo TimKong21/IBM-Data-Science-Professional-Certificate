@@ -8,6 +8,7 @@ import plotly.express as px
 
 # Read the airline data into pandas dataframe
 spacex_df = pd.read_csv("spacex_launch_dash.csv")
+spacex_df.drop(columns=['Unnamed: 0', 'Mission Outcome'], inplace=True)
 max_payload = spacex_df['Payload Mass (kg)'].max()
 min_payload = spacex_df['Payload Mass (kg)'].min()
 
@@ -22,16 +23,17 @@ for launch_site in unique_launch_sites:
 app = dash.Dash(__name__)
 
 # Create an app layout
-app.layout = html.Div(children=[html.H1('SpaceX Launch Records Dashboard',
+app.layout = html.Div(children=[# Header 
+                                html.H1('SpaceX Launch Records Dashboard',
                                     style={'textAlign': 'center', 'color': '#503D36','font-size': 40}),
                                 html.Br(),
 
                                 # TASK 1: Add a dropdown list to enable Launch Site selection
-                                # The default select value is for ALL sites
+                                # ->Set default select value as 'ALL sites'
                                 html.Div(dcc.Dropdown(
                                     id='site-dropdown',
                                     options=launch_sites,
-                                    value='All sites',
+                                    value='All Sites',
                                     placeholder='Select a launch site here',
                                     searchable=True,
                                     clearable=True)
@@ -39,34 +41,46 @@ app.layout = html.Div(children=[html.H1('SpaceX Launch Records Dashboard',
                                 html.Br(),
 
                                 # TASK 2: Add a pie chart to show the total successful launches count for all sites
-                                # If a specific launch site was selected, show the Success vs. Failed counts for the site
                                 html.Div(dcc.Graph(id='success-pie-chart')),
                                 html.Br(),
 
-                                html.P("Payload range (Kg):"),
                                 # TASK 3: Add a slider to select payload range
-                                #dcc.RangeSlider(id='payload-slider',...)
+                                # -> Set default value to be max & min payload 
+                                html.P("Payload range (Kg):"),
+                                html.Div(dcc.RangeSlider(id='payload-slider', 
+                                                            min=0, max=10000, step=1000,
+                                                            value=[min_payload,max_payload],
+                                                            marks={
+                                                                0:{'label':'0 (min)', 'style':{'font-size':15, 'font-weight':'bold'}},
+                                                                2500:'2500',
+                                                                5000:'5000',
+                                                                7500:'7500',
+                                                                9600: {'label':'9600 (max)', 'style':{'font-size':15, 'font-weight':'bold'}},
+                                                                10000:'1000'
+                                                                })
+                                                            ),
+                                html.Div(id='retun-payload-range'),
+                                html.Br(),
 
                                 # TASK 4: Add a scatter chart to show the correlation between payload and launch success
                                 html.Div(dcc.Graph(id='success-payload-scatter-chart')),
                                 ])
 
 # TASK 2:
-# Add a callback function for `site-dropdown` as input, `success-pie-chart` as output
-# -> output pie chart in response to drop down selection
+# Add a callback function to output a pie chart in response to drop down selection
 @app.callback(
     Output(component_id='success-pie-chart', component_property='figure'),
     Input(component_id='site-dropdown', component_property='value')
     )
 def output_pie(site): #input value 
-    if (site=='All Sites' or site==None):
+    if (site =='All Sites'):
         all_sites = spacex_df[spacex_df['class'] == 1].reset_index(drop=True) # All Success only for all sites.
         all_sites.rename(columns={'class': 'count'}, inplace=True)
         fig = px.pie(
                 all_sites, 
                 values='count', 
                 names='Launch Site', 
-                title='Total Success Launches by All Sites',
+                title='Total Success Launches by Site',
                 color_discrete_sequence=px.colors.sequential.RdBu
                 )
     else:
@@ -75,16 +89,47 @@ def output_pie(site): #input value
         site_sucessRate.rename(columns={0:'count'}, inplace=True)
         site_sucessRate.replace([0,1],['Fail', 'Successs'], inplace=True)
         fig = px.pie(
-            site_sucessRate, 
-            values='count', 
-            names='class', 
-            title=site +' launch rate',
-            )
+                site_sucessRate, 
+                values='count', 
+                names='class', 
+                title='Total Success Launches for site '+site,
+                )
     return fig 
 
-# TASK 4:
-# Add a callback function for `site-dropdown` and `payload-slider` as inputs, `success-payload-scatter-chart` as output
+# TASK 3:
+# Add a callback function that returns the selected pay load range
+@app.callback(
+    Output('retun-payload-range', 'children'),
+    Input('payload-slider', 'value'))
+def output_payload_range(payload_range):
+    return 'You have selected range {}'.format(payload_range)
 
+# TASK 4:
+# Add a callback function to output a scatter plot in response payload range
+@app.callback(
+    Output('success-payload-scatter-chart', 'figure'),
+    [Input('site-dropdown', 'value'), Input('payload-slider', 'value')]) #multiple inputs
+def output_scatter(site, payload_range):
+    low,high = payload_range
+    df = spacex_df
+    filtered_df = df[df['Payload Mass (kg)'].between(low,high)]
+
+    if site =='All Sites':
+        fig = px.scatter(filtered_df, 
+                        x='Payload Mass (kg)', 
+                        y='class', 
+                        size='Payload Mass (kg)',
+                        color='Booster Version Category', 
+                        title='Success Rate for All Sites by Payload Range')
+    else:
+        filtered_df = filtered_df[filtered_df['Launch Site']==site]
+        fig = px.scatter(filtered_df, 
+                        x='Payload Mass (kg)', 
+                        y='class', 
+                        size='Payload Mass (kg)',
+                        color='Booster Version Category', 
+                        title='Success Rate for Site {} by Payload Range'.format(site))
+    return fig
 
 # Run the app
 if __name__ == '__main__':
